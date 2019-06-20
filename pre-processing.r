@@ -61,10 +61,19 @@ rm(ind.dp, ind.na)
 summary(data)
 colnames(data)
 
+## Join P_HABITABLE AS BINARY FACTOR
+data$P_HABZONE_OPT <- as.factor(ifelse(data$P_HABZONE_CON > 0 | data$P_HABZONE_OPT > 0, 1, 0))
+colnames(data)[which(colnames(data)=="S_HZ_OPT_MIN")] <- "S_HZ_MIN"
+colnames(data)[which(colnames(data)=="S_HZ_OPT_MAX")] <- "S_HZ_MAX"
+colnames(data)[which(colnames(data)=="P_HABZONE_OPT")] <- "P_HABZONE"
+data <- data[,-which(colnames(data)=="P_HABZONE_CON")]
+
+## Turn P_HABITABLE into factor
+data$P_HABITABLE <- as.factor(data$P_HABITABLE)
+
 ## Plot ESI index and habitable planets
 plot(data$P_ESI)
 plot(data$P_HABITABLE)
 
 ## Missings for habitable planets
 hab.pl <- data[which(data$P_HABITABLE > 0),]
-
