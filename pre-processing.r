@@ -1,6 +1,7 @@
 # Library and set-up
 rm(list=ls())
 set.seed(42)
+library(corrplot)
 library(dplyr)
 library(missForest)
 
@@ -78,17 +79,40 @@ data <- data[,-which(colnames(data)=="S_RADIUS")]
 plot(data$P_ESI)
 plot(data$P_HABITABLE)
 
-## Missings for habitable planets
-hab.pl <- data[which(data$P_HABITABLE == "habitable"),]
-
 ## Corrplot between numerical variables
-library(corrplot)
 colnames(data)
 data.cor <- cor(data[,-c(10,13,17:20)], use="complete.obs")
 corrplot(data.cor)
+rm(data.cor)
+
+################### UNIVARIATE OUTLIER DETECTION ###################
 
 ## Boxplots for each feature
 for(i in c(1:9,11:12,14:16)) {
-    boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
+  boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
 }
+rm(i)
 
+## Planet mass outliers
+out.p_mass <- data[which(data$P_MASS_EST > 1.5e4),]
+## MASS IS WRONG for this instance
+
+## Planet radius outliers
+out.p_rad <- data[which(data$P_RADIUS_EST > 30),]
+## MASS, RADIUS, SEMIAXIS WRONG for this instance
+
+## Planet distance outliers
+out.p_dist <- data[which(data$P_DISTANCE > 700),]
+
+## Planet flux & temperature outliers
+out.p_flux <- data[which(data$P_FLUX > 3e5 & data$P_TEMP_EQUIL > 5000),]
+
+## Star temperature outliers
+out.s_temp <- data[which(data$S_TEMPERATURE > 20000),]
+
+## Star radius estimation & luminosity & habitable zone min/max outliers
+out.s_lum <- data[which(data$S_RADIUS_EST > 60 & data$S_LUMINOSITY > 1000 & data$S_HZ_MIN > 25 & data$S_HZ_MAX > 60),]
+
+drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_flux, out.s_lum, out.s_temp)
+
+#rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
