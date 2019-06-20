@@ -68,12 +68,27 @@ colnames(data)[which(colnames(data)=="S_HZ_OPT_MAX")] <- "S_HZ_MAX"
 colnames(data)[which(colnames(data)=="P_HABZONE_OPT")] <- "P_HABZONE"
 data <- data[,-which(colnames(data)=="P_HABZONE_CON")]
 
-## Turn P_HABITABLE into factor
-data$P_HABITABLE <- as.factor(data$P_HABITABLE)
+## Turn P_HABITABLE into binary factor
+data$P_HABITABLE <- as.factor(ifelse(data$P_HABITABLE > 0, "habitable", "non-habitable"))
+
+## Remove S_RADIUS for S_RADIUS_EST
+data <- data[,-which(colnames(data)=="S_RADIUS")]
 
 ## Plot ESI index and habitable planets
 plot(data$P_ESI)
 plot(data$P_HABITABLE)
 
 ## Missings for habitable planets
-hab.pl <- data[which(data$P_HABITABLE > 0),]
+hab.pl <- data[which(data$P_HABITABLE == "habitable"),]
+
+## Corrplot between numerical variables
+library(corrplot)
+colnames(data)
+data.cor <- cor(data[,-c(10,13,17:20)], use="complete.obs")
+corrplot(data.cor)
+
+## Boxplots for each feature
+for(i in c(1:9,11:12,14:16)) {
+    boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
+}
+
