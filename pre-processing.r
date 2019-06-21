@@ -81,12 +81,6 @@ data <- data[,-which(colnames(data)=="S_RADIUS")]
 plot(data$P_ESI)
 plot(data$P_HABITABLE)
 
-## Corrplot between numerical variables
-colnames(data)
-data.cor <- cor(data[,-c(10,13,17:20)], use="complete.obs")
-corrplot(data.cor)
-rm(data.cor)
-
 # Function to compute and show the most mosthighly correlated variables
 mosthighlycorrelated = function(mydataframe,numtoreport)
 {
@@ -115,36 +109,54 @@ for(i in c(1:9,11:12,14:16)) {
   boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
 }
 rm(i)
-
+## Drop unrealistic/incorrect or out-of-scale ros for each feature
 ## Planet mass outliers
-out.p_mass <- data[which(data$P_MASS_EST > 1.5e4),]
+out.p_mass <- data[which(data$P_MASS_EST < 1e-4 | data$P_MASS_EST > 1.5e4),]
 ## MASS IS WRONG for this instance
-
 ## Planet radius outliers
-out.p_rad <- data[which(data$P_RADIUS_EST > 30),]
+out.p_rad <- data[which(data$P_RADIUS_EST < 1e-4 | data$P_RADIUS_EST > 30),]
 ## MASS, RADIUS, SEMIAXIS WRONG for this instance
-
 ## Planet distance outliers
-out.p_dist <- data[which(data$P_DISTANCE > 700),]
-
+out.p_dist <- data[which(data$P_SEMI_MAJOR_AXIS_EST < 1e-4 | data$P_SEMI_MAJOR_AXIS_EST > 700),]
 ## Planet period outliers
-out.p_dist <- data[which(data$P_PERIOD > 700),]
-
+out.p_period <- data[which(data$P_PERIOD > 3e4),]
 ## Planet flux & temperature outliers
-out.p_flux <- data[which(data$P_FLUX > 3e5 & data$P_TEMP_EQUIL > 5000),]
-
+out.p_flux <- data[which(data$P_FLUX > 2e4 & data$P_TEMP_EQUIL > 3000),]
 ## Star temperature outliers
 out.s_temp <- data[which(data$S_TEMPERATURE > 20000),]
-
 ## Star radius estimation & luminosity & habitable zone min/max outliers
 out.s_lum <- data[which(data$S_RADIUS_EST > 60 & data$S_LUMINOSITY > 1000 & data$S_HZ_MIN > 25 & data$S_HZ_MAX > 60),]
-
-drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_flux, out.s_lum, out.s_temp)
-
+## Joined dropped instances, even repeated ones
+drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_period, out.p_flux, out.s_lum, out.s_temp)
+## Drop from dataset
 data <- data[!rownames(data) %in% rownames(drop.out),]
+## Removed used variables
 rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
 
+## Transform variables with huge range in to logarithm of variables
+data$P_MASS_EST <- log(data$P_MASS_EST + 1)
+data$P_PERIOD <- log(data$P_PERIOD + 1)
+data$P_SEMI_MAJOR_AXIS_EST <- log(data$P_SEMI_MAJOR_AXIS_EST + 1)
+data$P_DISTANCE <- log(data$P_DISTANCE + 1)
+data$P_APASTRON <- log(data$P_APASTRON + 1)
+data$P_PERIASTRON <- log(data$P_PERIASTRON + 1)
+data$P_FLUX <- log(data$P_FLUX + 1)
+data$P_TEMP_EQUIL <- log(data$P_TEMP_EQUIL + 1)
+data$S_TEMPERATURE <- log(data$S_TEMPERATURE + 1)
+data$S_LUMINOSITY <- log(data$S_LUMINOSITY + 1)
 
+## Boxplots for each feature
+for(i in c(1:9,11:12,14:16)) {
+  boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
+}
+rm(i)
+
+
+## Corrplot between numerical variables
+non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+data.cor <- cor(data[,-non.numeric], use="complete.obs")
+corrplot(data.cor)
+rm(data.cor)
 
 ################### IMPUTATION OF MISSING VALUES ########################
 
@@ -163,30 +175,22 @@ if(imp.method == 'knn') {
   summary(data)
 }
 
-# # impute with K-nearest neighborous
-# # BUT, we need to deal with the categorical data
-# library(class)
-# 
-# # first make a copy of the data to resolve errors
-# planets <- data[,-c(10,13)]
-# attach(planets)
-# 
-# aux = subset (planets, select = names(planets)[names(planets) != "P_PERIOD"])
-# aux1 = aux[!is.na(planets$P_PERIOD),]
-# aux2 = aux[is.na(planets$P_PERIOD),]
-# 
-# cl <- data_imp$P_PERIOD[!is.na(data_imp$P_PERIOD)]
-# knn.inc = knn (aux1,aux2, P_PERIOD[!is.na(P_PERIOD)])
+################### SAMPLE NON-HABITABLE CLASS TO REDUCE ASSYMMETRY ########################
+smpl.len <- 10*nrow(data[which(data$P_HABITABLE == 'habitable'),])
+data <- data %>%
+  filter(P_HABITABLE == 'non-habitable') %>%
+  sample_n(smpl.len, replace = F) %>%
+  rbind(data[which(data$P_HABITABLE == 'habitable'),]) %>%
+  as.data.frame()
+rm(smpl.len)
 
-################### OUTLIER DETECTION ########################
+################### FEATURE SELECTION ########################
 
-library(outliers)
 library(FSelector)
 library(car)
 library(chemometrics)
-
-
-non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+library(CORElearn)
+library(randomForest)
 
 scaled <- data
 for (i in 1:ncol(data)) {
@@ -196,7 +200,17 @@ for (i in 1:ncol(data)) {
 }
 rm(i)
 
-subset.CFS <- cfs (P_HABITABLE~., data)
-model <- glm(P_HABITABLE ~ ., family=binomial(link=logit), data=data,
-             control=list(epsilon=1e-6, maxit=100))
+## Take just one of variable from each correlated block
+sel <- which(colnames(scaled) %in% c("P_MASS_EST", "P_DISTANCE","P_TYPE", "P_TEMP_EQUIL", "S_TEMPERATURE", "S_RADIUS_EST", "S_LUMINOSITY", "P_HABITABLE") )
+data.sb <- scaled[,sel]
+rm(sel)
 
+subset.CFS <- cfs (P_HABITABLE~., scaled)
+subset.Consistency <- consistency (P_HABITABLE~., scaled)
+estReliefF <- attrEval(P_HABITABLE~., scaled, estimator="Relief", ReliefIterations=1000)
+sort(estReliefF, decreasing = T)
+
+model <- glm(P_HABITABLE ~ ., family=binomial(link=logit), data=data.sb)
+
+rf.model <- randomForest(P_HABITABLE~., data.sb, importance=T)
+varImpPlot(rf.model)
