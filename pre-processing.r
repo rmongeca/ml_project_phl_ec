@@ -4,8 +4,10 @@ set.seed(42)
 library(corrplot)
 library(dplyr)
 library(DMwR)
+library(FSelector)
 library(mice)
-library(missForest)
+library(car)
+library(randomForest)
 
 data <- read.delim("data/phl_exoplanet_catalog.csv", header = TRUE, sep = ",", dec = ".", na.strings = "")
 
@@ -18,7 +20,7 @@ data <- data[which(data$P_STATUS == 3),]
 colnames(data)
 rownm <- data[,1]
 d.index <- c(1:2,4:5,7:10,12:13,15:16,18:19,21:22,24:25,27:32,34:48,50:51,53:54,56:61,63:68,73,77,79:80,82:83,87:89,93:101,107:109)
-drop.col <- as.data.frame(colnames(data)[d.index])
+drop.col <- colnames(data)[d.index]
 data <- data[,-d.index]
 rm(d.index)
 
@@ -77,39 +79,23 @@ data$P_HABITABLE <- as.factor(ifelse(data$P_HABITABLE > 0, "habitable", "non-hab
 ## Remove S_RADIUS for S_RADIUS_EST
 data <- data[,-which(colnames(data)=="S_RADIUS")]
 
-## Plot ESI index and habitable planets
-plot(data$P_ESI)
+## Plot habitable planets
 plot(data$P_HABITABLE)
 
-# Function to compute and show the most mosthighly correlated variables
-mosthighlycorrelated = function(mydataframe,numtoreport)
-{
-    # find the correlations
-    cormatrix = cor(mydataframe)
-    # set the correlations on the diagonal or lower triangle to zero,
-    # so they will not be reported as the highest ones:
-    diag(cormatrix) = 0
-    cormatrix[lower.tri(cormatrix)] = 0
-    # flatten the matrix into a dataframe for easy sorting
-    fm = as.data.frame(as.table(cormatrix))
-    # assign human-friendly names
-    names(fm) = c("First.Variable", "Second.Variable","Correlation")
-    # sort and print the top n correlations
-    head(fm[order(abs(fm$Correlation),decreasing=TRUE),],n=numtoreport)
-}
-mosthighlycorrelated(data[,-c(10,13,17:20)],10)
-
 ## Remove unnecessary target variables
-data <- data[,-which(colnames(data) %in% c("P_HABZONE", "P_TYPE_TEMP", "P_ESI"))]
+data <- data[,-which(colnames(data) %in% c("P_HABZONE","P_TYPE_TEMP","P_ESI"))]
 
 ################### UNIVARIATE OUTLIER DETECTION ################### 
 
 ## Boxplots for each feature
-for(i in c(1:9,11:12,14:16)) {
+non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+num <- 1:ncol(data)
+for(i in num[-non.numeric]) {
   boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
 }
-rm(i)
-## Drop unrealistic/incorrect or out-of-scale ros for each feature
+rm(i,num)
+
+## Drop unrealistic/incorrect or out-of-scale rows for each feature
 ## Planet mass outliers
 out.p_mass <- data[which(data$P_MASS_EST < 1e-4 | data$P_MASS_EST > 1.5e4),]
 ## MASS IS WRONG for this instance
@@ -131,7 +117,9 @@ drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_period, out.p_flux, o
 ## Drop from dataset
 data <- data[!rownames(data) %in% rownames(drop.out),]
 ## Removed used variables
-rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
+rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp, out.p_period)
+
+################### FEATURE TRANSFOMRATION ################### 
 
 ## Transform variables with huge range in to logarithm of variables
 data$P_MASS_EST <- log(data$P_MASS_EST + 1)
@@ -146,17 +134,12 @@ data$S_TEMPERATURE <- log(data$S_TEMPERATURE + 1)
 data$S_LUMINOSITY <- log(data$S_LUMINOSITY + 1)
 
 ## Boxplots for each feature
-for(i in c(1:9,11:12,14:16)) {
+non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+num <- 1:ncol(data)
+for(i in num[-non.numeric]) {
   boxplot(data[,i], drop=T, main=paste("Boxplot for ",colnames(data)[i]))
 }
-rm(i)
-
-
-## Corrplot between numerical variables
-non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
-data.cor <- cor(data[,-non.numeric], use="complete.obs")
-corrplot(data.cor)
-rm(data.cor)
+rm(i,num)
 
 ################### IMPUTATION OF MISSING VALUES ########################
 
@@ -175,42 +158,63 @@ if(imp.method == 'knn') {
   summary(data)
 }
 
-################### SAMPLE NON-HABITABLE CLASS TO REDUCE ASSYMMETRY ########################
-smpl.len <- 10*nrow(data[which(data$P_HABITABLE == 'habitable'),])
-data <- data %>%
-  filter(P_HABITABLE == 'non-habitable') %>%
-  sample_n(smpl.len, replace = F) %>%
-  rbind(data[which(data$P_HABITABLE == 'habitable'),]) %>%
-  as.data.frame()
-rm(smpl.len)
-
 ################### FEATURE SELECTION ########################
 
-library(FSelector)
-library(car)
-library(chemometrics)
-library(CORElearn)
-library(randomForest)
+## Corrplot between numerical variables
+non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+data.cor <- cor(data[,-non.numeric], use="complete.obs")
+corrplot(data.cor)
+rm(data.cor)
 
-scaled <- data
+# Function to compute and show the most mosthighly correlated variables
+mosthighlycorrelated = function(mydataframe,numtoreport)
+{
+  # find the correlations
+  cormatrix = cor(mydataframe)
+  # set the correlations on the diagonal or lower triangle to zero,
+  # so they will not be reported as the highest ones:
+  diag(cormatrix) = 0
+  cormatrix[lower.tri(cormatrix)] = 0
+  # flatten the matrix into a dataframe for easy sorting
+  fm = as.data.frame(as.table(cormatrix))
+  # assign human-friendly names
+  names(fm) = c("First.Variable", "Second.Variable","Correlation")
+  # sort and print the top n correlations
+  head(fm[order(abs(fm$Correlation),decreasing=TRUE),],n=numtoreport)
+}
+mosthighlycorrelated(data[,-non.numeric],20)
+
+var.sel <- which(colnames(data) %in% c("P_MASS_EST","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_LUMINOSITY","S_RADIUS_EST"))
+var.sel.all <- which(colnames(data) %in% c("P_TYPE","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_TYPE_TEMP","S_RADIUS_EST"))
+
+selection <- 'all'
+if(selection == 'num') {
+  hab <- data$P_HABITABLE
+  data <- data[,var.sel]
+  data$P_HABITABLE <- hab
+  rm(hab)
+}
+if(selection == 'cat') {
+  hab <- data$P_HABITABLE
+  data <- data[,var.sel.all]
+  data$P_HABITABLE <- hab
+  rm(hab)
+}
+
+## Standardize the data, non.numeric ones
 for (i in 1:ncol(data)) {
   if (!is.factor(data[,i])) {
-    scaled[,i] <- scale(data[,i])
+    data[,i] <- scale(data[,i])
   }
 }
 rm(i)
 
-## Take just one of variable from each correlated block
-sel <- which(colnames(scaled) %in% c("P_MASS_EST", "P_DISTANCE","P_TYPE", "P_TEMP_EQUIL", "S_TEMPERATURE", "S_RADIUS_EST", "S_LUMINOSITY", "P_HABITABLE") )
-data.sb <- scaled[,sel]
-rm(sel)
+(subset.CFS <- cfs (P_HABITABLE~., data))
+(subset.Consistency <- consistency (P_HABITABLE~., data))
 
-subset.CFS <- cfs (P_HABITABLE~., scaled)
-subset.Consistency <- consistency (P_HABITABLE~., scaled)
-estReliefF <- attrEval(P_HABITABLE~., scaled, estimator="Relief", ReliefIterations=1000)
-sort(estReliefF, decreasing = T)
+glm.model <- glm (P_HABITABLE~., family = binomial(link=logit), data = data)
+(glm.model.form <- step(glm.model)$formula)
 
-model <- glm(P_HABITABLE ~ ., family=binomial(link=logit), data=data.sb)
+(rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
 
-rf.model <- randomForest(P_HABITABLE~., data.sb, importance=T)
-varImpPlot(rf.model)
+write.csv(data, file = paste("data_", selection,".csv", sep = ""))
