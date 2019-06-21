@@ -3,6 +3,8 @@ rm(list=ls())
 set.seed(42)
 library(corrplot)
 library(dplyr)
+library(DMwR)
+library(mice)
 library(missForest)
 
 data <- read.delim("data/phl_exoplanet_catalog.csv", header = TRUE, sep = ",", dec = ".", na.strings = "")
@@ -103,7 +105,10 @@ mosthighlycorrelated = function(mydataframe,numtoreport)
 }
 mosthighlycorrelated(data[,-c(10,13,17:20)],10)
 
-################### UNIVARIATE OUTLIER DETECTION ###################
+## Remove unnecessary target variables
+data <- data[,-which(colnames(data) %in% c("P_HABZONE", "P_TYPE_TEMP", "P_ESI"))]
+
+################### UNIVARIATE OUTLIER DETECTION ################### 
 
 ## Boxplots for each feature
 for(i in c(1:9,11:12,14:16)) {
@@ -122,6 +127,9 @@ out.p_rad <- data[which(data$P_RADIUS_EST > 30),]
 ## Planet distance outliers
 out.p_dist <- data[which(data$P_DISTANCE > 700),]
 
+## Planet period outliers
+out.p_dist <- data[which(data$P_PERIOD > 700),]
+
 ## Planet flux & temperature outliers
 out.p_flux <- data[which(data$P_FLUX > 3e5 & data$P_TEMP_EQUIL > 5000),]
 
@@ -133,18 +141,27 @@ out.s_lum <- data[which(data$S_RADIUS_EST > 60 & data$S_LUMINOSITY > 1000 & data
 
 drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_flux, out.s_lum, out.s_temp)
 
-#rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
+data <- data[!rownames(data) %in% rownames(drop.out),]
+rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
+
+
 
 ################### IMPUTATION OF MISSING VALUES ########################
 
 # impute with Multiple Imputation by Chained Equations
-library(mice)
+imp.method <- 'knn'
 
-m <- mice(data, m=5, print=FALSE)
-names <- rownames(data)
-data <- complete(m)
-rownames(data) <- names
-summary(data)
+if(imp.method == 'mice') {
+  m <- mice(data, m=5, print=FALSE)
+  names <- rownames(data)
+  data <- complete(m)
+  rownames(data) <- names
+  summary(data)  
+}
+if(imp.method == 'knn') {
+  data <- knnImputation(data, k=1, scale=T, meth = 'weighAvg')
+  summary(data)
+}
 
 # # impute with K-nearest neighborous
 # # BUT, we need to deal with the categorical data
@@ -161,5 +178,25 @@ summary(data)
 # cl <- data_imp$P_PERIOD[!is.na(data_imp$P_PERIOD)]
 # knn.inc = knn (aux1,aux2, P_PERIOD[!is.na(P_PERIOD)])
 
+################### OUTLIER DETECTION ########################
 
+library(outliers)
+library(FSelector)
+library(car)
+library(chemometrics)
+
+
+non.numeric <- which(colnames(data) %in% c("P_TYPE","P_TYPE_TEMP","S_TYPE_TEMP","P_HABZONE","P_HABITABLE","P_ESI"))
+
+scaled <- data
+for (i in 1:ncol(data)) {
+  if (!is.factor(data[,i])) {
+    scaled[,i] <- scale(data[,i])
+  }
+}
+rm(i)
+
+subset.CFS <- cfs (P_HABITABLE~., data)
+model <- glm(P_HABITABLE ~ ., family=binomial(link=logit), data=data,
+             control=list(epsilon=1e-6, maxit=100))
 
