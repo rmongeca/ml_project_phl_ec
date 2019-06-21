@@ -85,6 +85,24 @@ data.cor <- cor(data[,-c(10,13,17:20)], use="complete.obs")
 corrplot(data.cor)
 rm(data.cor)
 
+# Function to compute and show the most mosthighly correlated variables
+mosthighlycorrelated = function(mydataframe,numtoreport)
+{
+    # find the correlations
+    cormatrix = cor(mydataframe)
+    # set the correlations on the diagonal or lower triangle to zero,
+    # so they will not be reported as the highest ones:
+    diag(cormatrix) = 0
+    cormatrix[lower.tri(cormatrix)] = 0
+    # flatten the matrix into a dataframe for easy sorting
+    fm = as.data.frame(as.table(cormatrix))
+    # assign human-friendly names
+    names(fm) = c("First.Variable", "Second.Variable","Correlation")
+    # sort and print the top n correlations
+    head(fm[order(abs(fm$Correlation),decreasing=TRUE),],n=numtoreport)
+}
+mosthighlycorrelated(data[,-c(10,13,17:20)],10)
+
 ################### UNIVARIATE OUTLIER DETECTION ###################
 
 ## Boxplots for each feature
@@ -116,3 +134,32 @@ out.s_lum <- data[which(data$S_RADIUS_EST > 60 & data$S_LUMINOSITY > 1000 & data
 drop.out <- rbind(out.p_mass, out.p_rad, out.p_dist, out.p_flux, out.s_lum, out.s_temp)
 
 #rm(out.p_dist, out.p_flux, out.p_mass, out.p_rad, out.s_lum, out.s_temp)
+
+################### IMPUTATION OF MISSING VALUES ########################
+
+# impute with Multiple Imputation by Chained Equations
+library(mice)
+
+m <- mice(data, m=5, print=FALSE)
+names <- rownames(data)
+data <- complete(m)
+rownames(data) <- names
+summary(data)
+
+# # impute with K-nearest neighborous
+# # BUT, we need to deal with the categorical data
+# library(class)
+# 
+# # first make a copy of the data to resolve errors
+# planets <- data[,-c(10,13)]
+# attach(planets)
+# 
+# aux = subset (planets, select = names(planets)[names(planets) != "P_PERIOD"])
+# aux1 = aux[!is.na(planets$P_PERIOD),]
+# aux2 = aux[is.na(planets$P_PERIOD),]
+# 
+# cl <- data_imp$P_PERIOD[!is.na(data_imp$P_PERIOD)]
+# knn.inc = knn (aux1,aux2, P_PERIOD[!is.na(P_PERIOD)])
+
+
+
