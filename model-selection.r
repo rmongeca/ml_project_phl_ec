@@ -164,3 +164,55 @@ print("Habitable accuracy:")
 mean(cv.results[,"Hab.accur"])
 print("Habitable false negative rate:")
 mean(cv.results[,"Hab.FN"])
+
+
+
+
+####### KNN Classification model ######################3
+
+data <- data.num
+#data <- data.cat
+
+neighbors <- 15
+
+set.seed(42)
+kfolds <- 10
+folds <- generateCVRuns(data$P_HABITABLE, ntimes=neighbors, nfold=kfolds, stratified=TRUE)
+cv.results <- matrix (rep(0,3*kfolds),nrow=kfolds)
+colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
+
+aux <- matrix(rep(0, 3*neighbors), nrow=neighbors)
+colnames(aux)<-c("# neighbors","mean Hab.accur", "mean Hab.FN")
+aux[,"mean Hab.accur"]<-0
+aux[,"mean Hab.FN"]<-0
+
+for(n in 1:neighbors){
+    for(i in 1:kfolds) {
+        va <- unlist(folds[[n]][[i]])
+        knn.model.train <- knn(data[-va,-c(7)], data[va,-c(7)], data[-va,"P_HABITABLE"], k = n)
+        
+        
+        ct <- table(Truth=data[va,7], Pred=knn.model.train)
+        cv.results[i,"Hab.accur"] <- diag(prop.table(ct, 1))[1]
+        cv.results[i,"Hab.FN"] <- prop.table(ct,1)[1,2]
+        cv.results[i,"fold"] <- i
+        
+    }
+    
+    aux[n, "# neighbors"] <- n
+    aux[n,"mean Hab.accur"] <- mean(cv.results[,2])
+    aux[n, "mean Hab.FN"] <- mean(cv.results[,3])
+    
+    
+}
+
+rm(i, n, kfolds, va)
+print("Best Habitable accuracy:")
+(max.acc <- max(aux[,"mean Hab.accur"]))
+print("Min Habitable false negative rate:")
+(min.fn <- min(aux[,"mean Hab.FN"]))
+
+# plot results
+plot(aux, type='b', col='red')
+
+(bestk <- aux[which(aux[,2] == max.acc & aux[,3] == min.fn),1])
