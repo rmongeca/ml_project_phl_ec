@@ -3,27 +3,25 @@ rm(list=ls())
 set.seed(42)
 library(class)
 library(dplyr)
-library (e1071)
+library(e1071)
 library(klaR)
 library(MASS)
 library(randomForest)
 library(TunePareto)
 
+## Variables to select dataset to test
+oversampled <- FALSE
+var <- 'cat'
 
-data.all <- read.delim("data/data_all.csv", header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
-data.num <- read.delim("data/data_num.csv", header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
-data.cat <- read.delim("data/data_cat.csv", header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
-
-## Select data to mode with
-var <- 'num'
-data <- data.all
-if(var == 'num') {
-  data <- data.num
+## Get taining data according to dataset decision
+path <- "data/"
+if(oversampled == T) {
+  path <- paste(path,"smote/",sep="")
 }
-if(var == 'cat') {
-  data <- data.cat
-}
+data <- read.delim(paste(path,"training_", var, ".csv",sep=""),
+                   header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
 
+## Get target variable index (depends on chosen dataset)
 target <- grep("P_HABITABLE", colnames(data))
   
 ################### LDA MODEL ###################
@@ -76,7 +74,7 @@ prop.table(ct,1)[1,2]
 ################### NAIVE BAYES MODEL ###################
 
 set.seed(42)
-k <- 10
+k <- 5
 folds <- generateCVRuns(data$P_HABITABLE, ntimes=1, nfold=k, stratified=TRUE)
 cv.results <- matrix (rep(0,3*k),nrow=k)
 colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
@@ -104,15 +102,16 @@ mean(cv.results[,"Hab.FN"])
   
 
 ################### RANDOM FOREST MODEL ###################
-
 set.seed(42)
-seq.times <- 5
-k <- 3
-folds <- generateCVRuns(data$P_HABITABLE, ntimes=seq.times, nfold=k, stratified=TRUE)
 
 ## Tune mtry number of predictors
-mtry <- seq(1,ncol(data)-1,length.out = seq.times)
-mtry <- unique(as.integer(mtry))
+seq.times <- ncol(data)-2
+k <- 5
+folds <- generateCVRuns(data$P_HABITABLE, ntimes=seq.times, nfold=k, stratified=TRUE)
+
+mtry <- seq(2,ncol(data)-1,length.out = seq.times)
+mtry <- as.integer(mtry)
+
 seq.results <- matrix(rep(0,3*seq.times),nrow=seq.times)
 colnames (seq.results) <- c("Mtry","Hab.accur","Hab.FN")
 cv.results <- matrix (rep(0,3*k),nrow=k)
@@ -147,9 +146,17 @@ mtry <- seq.results[1,1]
 
 
 ## Tune ntrees
-ntree <- seq(100,1000,length.out = seq.times)
-ntree <- unique(as.integer(ntree))
+seq.times <- 5
+k <- 5
+folds <- generateCVRuns(data$P_HABITABLE, ntimes=seq.times, nfold=k, stratified=TRUE)
+
+ntree <- seq(100,500,length.out = seq.times)
+ntree <- as.integer(ntree)
+
+seq.results <- matrix(rep(0,3*seq.times),nrow=seq.times)
 colnames (seq.results) <- c("ntree","Hab.accur","Hab.FN")
+cv.results <- matrix (rep(0,3*k),nrow=k)
+colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
 
 ## Paramter tuning loop 
 for(j in 1:seq.times) {
@@ -179,8 +186,7 @@ ntree <- seq.results[1,1]
 rm(seq.results, seq.times)
 
 ## Train tuned random forest and check custom accuracy measures
-set.seed(42)
-k <- 10
+k <- 5
 folds <- generateCVRuns(data$P_HABITABLE, ntimes=1, nfold=k, stratified=TRUE)
 cv.results <- matrix (rep(0,3*k),nrow=k)
 colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
@@ -188,7 +194,7 @@ colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
 ## CV for model accuracy
 for(i in 1:k) {
   va <- unlist(folds[[1]][[i]])
-  rf.model <- randomForest(P_HABITABLE~., data=data[-va,], mtry=mtry, ntree=ntree, importance=F, proximity=F)
+  rf.model <- randomForest(P_HABITABLE~., data=data[-va,], mtry=mtry, ntree=ntree, importance=T, proximity=F)
   
   ## Get predictions accuracy measures for fold
   pred <- predict(rf.model, newdata=data[va,])
@@ -210,15 +216,15 @@ mean(cv.results[,"Hab.FN"])
 
 
 ################### KNN CLASSIFIER MODEL ###################
-set.seed(42)
+set.seed(1234)
 if(var == 'num') {
-  neighbors <- 15
-  kfolds <- 10
+  neighbors <- 10
+  kfolds <- 5
   folds <- generateCVRuns(data$P_HABITABLE, ntimes=neighbors, nfold=kfolds, stratified=TRUE)
-  cv.results <- matrix (rep(0,3*kfolds),nrow=kfolds)
-  colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
   
   ## Create auxiliary to store values
+  cv.results <- matrix (rep(0,3*kfolds),nrow=kfolds)
+  colnames (cv.results) <- c("fold","Hab.accur","Hab.FN")
   aux <- matrix(rep(0, 3*neighbors), nrow=neighbors)
   colnames(aux)<-c("# neighbors","mean Hab.accur", "mean Hab.FN")
   aux[,"mean Hab.accur"]<-0

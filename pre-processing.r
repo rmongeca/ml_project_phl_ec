@@ -209,15 +209,23 @@ for (i in 1:ncol(data)) {
 }
 rm(i)
 
+################### SAMPLE SELECTION/SPLITTING ########################
+
+oversample <- T
+## Synthetic Minority Oversample Technique (SMOTE)
+if(oversample == T) {
+  data <- SMOTE(P_HABITABLE~., data = data, perc.over = 500, perc.under = 1200)
+}
+
 # create training and test sample
 # 66% trauning and rest test
-
 summary(data)
 sample.size <- floor(0.66 *nrow(data)) 
 train <- sample(seq_len(nrow(data)), size = sample.size)
 
 data.training <- data[train, ]
 data.test <- data[-train, ]
+
 
 # (subset.CFS <- cfs (P_HABITABLE~., data))
 # (subset.Consistency <- consistency (P_HABITABLE~., data))
@@ -227,6 +235,14 @@ data.test <- data[-train, ]
 # 
 # (rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
 # 
-write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
-write.csv(data.training, file = paste("data/data_training_", selection, ".csv", sep = ""))
-write.csv(data.test, file = paste("data/data_test_", selection, ".csv", sep = ""))
+if(oversample == F) {
+  write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
+  write.csv(data.training, file = paste("data/training_", selection, ".csv", sep = ""))
+  write.csv(data.test, file = paste("data/test_", selection, ".csv", sep = ""))  
+}
+if(oversample == T) {
+  write.csv(data, file = paste("data/smote/data_", selection,".csv", sep = ""))
+  write.csv(data.training, file = paste("data/smote/training_", selection, ".csv", sep = ""))
+  write.csv(data.test, file = paste("data/smote/test_", selection, ".csv", sep = ""))
+}
+
