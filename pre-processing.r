@@ -209,12 +209,24 @@ for (i in 1:ncol(data)) {
 }
 rm(i)
 
-(subset.CFS <- cfs (P_HABITABLE~., data))
-(subset.Consistency <- consistency (P_HABITABLE~., data))
+# create training and test sample
+# 66% trauning and rest test
 
-glm.model <- glm (P_HABITABLE~., family = binomial(link=logit), data = data)
-(glm.model.form <- step(glm.model)$formula)
+summary(data)
+sample.size <- floor(0.66 *nrow(data)) 
+train <- sample(seq_len(nrow(data)), size = sample.size)
 
-(rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
+data.training <- data[train, ]
+data.test <- data[-train, ]
 
+# (subset.CFS <- cfs (P_HABITABLE~., data))
+# (subset.Consistency <- consistency (P_HABITABLE~., data))
+# 
+# glm.model <- glm (P_HABITABLE~., family = binomial(link=logit), data = data)
+# (glm.model.form <- step(glm.model)$formula)
+# 
+# (rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
+# 
 write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
+write.csv(data.training, file = paste("data/data_training_", selection, ".csv", sep = ""))
+write.csv(data.test, file = paste("data/data_test_", selection, ".csv", sep = ""))
