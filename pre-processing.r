@@ -11,6 +11,13 @@ library(randomForest)
 
 data <- read.delim("data/phl_exoplanet_catalog.csv", header = TRUE, sep = ",", dec = ".", na.strings = "")
 
+## Variables to select datasets to generate
+## (will generate whole data, training and test for given parameters)
+oversampled <- FALSE
+var <- 'all'
+## Variable to select imputation method
+imp.method <- 'knn'
+
 ################### INTEREST DATA SELECTION ###################
 
 ## Remove non-confirmed exoplanets
@@ -143,9 +150,7 @@ rm(i,num)
 
 ################### IMPUTATION OF MISSING VALUES ########################
 
-# impute with Multiple Imputation by Chained Equations
-imp.method <- 'knn'
-
+## Impute with Multiple Imputation by Chained Equations
 if(imp.method == 'mice') {
   m <- mice(data, m=5, print=FALSE)
   names <- rownames(data)
@@ -153,6 +158,7 @@ if(imp.method == 'mice') {
   rownames(data) <- names
   summary(data)  
 }
+## Impute with K nearest neighbours
 if(imp.method == 'knn') {
   data <- knnImputation(data, k=1, scale=T, meth = 'weighAvg')
   summary(data)
@@ -187,7 +193,6 @@ mosthighlycorrelated(data[,-non.numeric],20)
 var.sel <- which(colnames(data) %in% c("P_MASS_EST","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_LUMINOSITY","S_RADIUS_EST"))
 var.sel.all <- which(colnames(data) %in% c("P_TYPE","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_TYPE_TEMP","S_RADIUS_EST"))
 
-selection <- 'all'
 if(selection == 'num') {
   hab <- data$P_HABITABLE
   data <- data[,var.sel]
@@ -211,7 +216,6 @@ rm(i)
 
 ################### SAMPLE SELECTION/SPLITTING ########################
 
-oversample <- T
 ## Synthetic Minority Oversample Technique (SMOTE)
 if(oversample == T) {
   data <- SMOTE(P_HABITABLE~., data = data, perc.over = 500, perc.under = 1200)
