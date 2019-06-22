@@ -217,4 +217,4 @@ glm.model <- glm (P_HABITABLE~., family = binomial(link=logit), data = data)
 
 (rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
 
-write.csv(data, file = paste("data_", selection,".csv", sep = ""))
+write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
