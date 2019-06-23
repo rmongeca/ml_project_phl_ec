@@ -11,17 +11,30 @@ library(TunePareto)
 
 ## Variables to select dataset to test
 oversampled <- FALSE
-var <- 'num'
+var <- 'cat'
 
 ## Get taining data according to dataset decision
 path <- "data/"
 if(oversampled == T) {
   path <- paste(path,"smote/",sep="")
 }
+data <- read.delim(paste(path,"data_", var, ".csv",sep=""),
+                   header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1) 
 train <- read.delim(paste(path,"training_", var, ".csv",sep=""),
                    header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
 test <- read.delim(paste(path,"test_", var, ".csv",sep=""),
                    header = TRUE, sep = ",", dec = ".", na.strings = "", row.names = 1)
+
+## Fix levels of ftors in training/test
+if(var != 'num') {
+  good.levels <- levels(data$P_TYPE)
+  levels(train$P_TYPE) <- good.levels
+  levels(test$P_TYPE) <- good.levels
+  good.levels <- levels(data$S_TYPE_TEMP)
+  levels(train$S_TYPE_TEMP) <- good.levels
+  levels(test$S_TYPE_TEMP) <- good.levels
+  rm(good.levels)
+}
 
 ## Get target variable index (depends on chosen dataset)
 target <- grep("P_HABITABLE", colnames(test))
@@ -43,21 +56,18 @@ if(var == 'num') {
 
 ## Train model
 rf.model <- randomForest(P_HABITABLE~., data=train, mtry=mtry, ntree=ntree, importance=T)
-print("TRAINING MEASURES:")
-ct <- rf.model$confusion
-print("Habitable accuracy:")
-prop.table(ct, 1)[1,1]
-print("Habitable false negative rate:")
-prop.table(ct,1)[1,2]
+rf.model
 ## Predict test data
 pred <- predict(rf.model, newdata=test[,-c(target)])
 (ct <- table(Truth=test[,target], Pred=pred))
 ## Print accuracy measures
 print("TEST PREDICTION MEASURES:")
-print("Habitable accuracy:")
+print("Habitable class accuracy:")
 prop.table(ct, 1)[1,1]
 print("Habitable false negative rate:")
 prop.table(ct,1)[1,2]
+print("Model general accuracy:")
+sum(diag(prop.table(ct)))
 ## Plot feature importance
 varImpPlot(rf.model, main="Feature importance for Random Forest final model")
 
@@ -65,27 +75,32 @@ varImpPlot(rf.model, main="Feature importance for Random Forest final model")
 
 if(var != 'all') {
   qda.model <- qda(P_HABITABLE~.,train)
+  qda.model
   pred <- predict(qda.model, test[,-c(target)])
   (ct <- table(Truth=test[,target], Pred=pred$class))
-  ## Really low habitable accuracy, really high false positives
   diag(prop.table(ct, 1))
-  print("Habitable accuracy:")
-  diag(prop.table(ct, 1))[1]
+  print("Habitable class accuracy:")
+  print(diag(prop.table(ct, 1))[1])
   print("Habitable false negative rate:")
-  prop.table(ct,1)[1,2]
+  print(prop.table(ct,1)[1,2])
+  print("Model general accuracy:")
+  print(sum(diag(prop.table(ct))))
+  
 }
 
 ##### NAIVE BAYES #####
 
 if(var == 'all') {
   naive.model <- naiveBayes(P_HABITABLE~., data=train)
+  naive.model
   pred <- predict(naive.model, newdata=test)
   (ct <- table(Truth=test[,target], Pred=pred))
-  diag(prop.table(ct, 1))
-  print("Habitable accuracy:")
-  diag(prop.table(ct, 1))[1]
+  print("Habitable class accuracy:")
+  print(diag(prop.table(ct, 1))[1])
   print("Habitable false negative rate:")
-  prop.table(ct,1)[1,2]
+  print(prop.table(ct,1)[1,2])
+  print("Model general accuracy:")
+  print(sum(diag(prop.table(ct))))
 }
 
 ##### KNN #####
@@ -93,8 +108,11 @@ if(var == 'all') {
 if(oversampled == T & var == 'num') {
   knn.model.train <- knn(train[,-c(target)], test[,-c(target)], train[,target], k = 5)
   (ct <- table(Truth=test[,target], Pred=knn.model.train))
-  print("Habitable accuracy:")
-  diag(prop.table(ct, 1))[1]
+  print("Habitable class accuracy:")
+  print(diag(prop.table(ct, 1))[1])
   print("Habitable false negative rate:")
-  prop.table(ct,1)[1,2]
+  print(prop.table(ct,1)[1,2])
+  print("Model general accuracy:")
+  print(sum(diag(prop.table(ct))))
 }
+
