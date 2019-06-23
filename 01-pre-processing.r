@@ -13,7 +13,7 @@ data <- read.delim("data/phl_exoplanet_catalog.csv", header = TRUE, sep = ",", d
 
 ## Variables to select datasets to generate
 ## (will generate whole data, training and test for given parameters)
-oversampled <- TRUE
+oversampled <- FALSE
 selection <- 'all'
 ## Variable to select imputation method
 imp.method <- 'knn'
@@ -222,7 +222,7 @@ rm(i)
 ################### SAMPLE SELECTION/SPLITTING ########################
 
 ## Synthetic Minority Oversample Technique (SMOTE)
-if(oversample == T) {
+if(oversampled == T) {
   data <- SMOTE(P_HABITABLE~., data = data, perc.over = 1000, perc.under = 250)
 }
 
@@ -235,12 +235,12 @@ train <- sample(seq_len(nrow(data)), size = sample.size)
 data.training <- data[train, ]
 data.test <- data[-train, ]
  
-if(oversample == F) {
+if(oversampled == F) {
   write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
   write.csv(data.training, file = paste("data/training_", selection, ".csv", sep = ""))
   write.csv(data.test, file = paste("data/test_", selection, ".csv", sep = ""))  
 }
-if(oversample == T) {
+if(oversampled == T) {
   write.csv(data, file = paste("data/smote/data_", selection,".csv", sep = ""))
   write.csv(data.training, file = paste("data/smote/training_", selection, ".csv", sep = ""))
   write.csv(data.test, file = paste("data/smote/test_", selection, ".csv", sep = ""))
