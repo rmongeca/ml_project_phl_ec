@@ -32,4 +32,5 @@ for reproducing our results. Specifically:
 
 ## Report/
 
-Folder containing the final report of our work.
+Folder containing the final report of our work "ML_Exoplanets_Habitability-Monge_Ricard-Vradi_Amalia"
+and appendix "ML__Appendix_Exoplanets_Habitability-Monge_Ricard-Vradi_Amalia".
