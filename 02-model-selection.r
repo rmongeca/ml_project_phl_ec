@@ -10,8 +10,8 @@ library(randomForest)
 library(TunePareto)
 
 ## Variables to select dataset to test
-oversampled <- TRUE
-var <- 'cat'
+oversampled <- FALSE
+var <- 'num'
 
 ## Get taining data according to dataset decision
 path <- "data/"
@@ -55,10 +55,12 @@ set.seed(42)
 if(var == 'num') {
   qda.model <- qda (x=data[, -c(target)], grouping=data[,target], CV=F)
   loadings <- as.matrix(data[which(data$P_HABITABLE == 'non-habitable'),-c(target)]) %*% as.matrix(qda.model[["scaling"]][,1:2,2])
-  plot(loadings, col="green", ylim=c(-12,10), xlim = c(-3,6),
-          main="Quadratic discriminants against classs")
+  plot(loadings, col="green", ylim=c(-12,7), xlim = c(-2,6),
+       main="Quadratic discriminants against classs",
+       ylab="QD2", xlab="QD1")
   loadings <- as.matrix(data[which(data$P_HABITABLE == 'habitable'),-c(target)]) %*% as.matrix(qda.model[["scaling"]][,1:2,1])
   points(loadings, col="red")
+  legend('bottomright',legend=c("Non-habitable","Habitable"), pch=c(1,1), col=c("green", "red"))
   ## In general really good separation between classes
 }
 
