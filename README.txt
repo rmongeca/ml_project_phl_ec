@@ -22,9 +22,14 @@ for reproducing our results. Specifically:
 
 
 - 02-model-selection.r ----> script containg the modelling process for all the methods 
-							 used for our analyses. In order to reproduce the results, 
-							 we mention in comments which lines to modify to use the 
-							 corresponding data split.
+			     used for our analyses. In order to reproduce the results, 
+			     we mention in comments which lines to modify to use the 
+			     corresponding data split.
 
 - 03-model-test.r      ----> script containing all the final steps of our analyses, using
-							 the test splits of each corresponding data split.
+			     the test splits of each corresponding data split.
+			     
+
+## Report/
+
+Folder containing the final report of our work.
