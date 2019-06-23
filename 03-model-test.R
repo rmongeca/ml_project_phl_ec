@@ -11,7 +11,7 @@ library(TunePareto)
 
 ## Variables to select dataset to test
 oversampled <- FALSE
-var <- 'cat'
+var <- 'all'
 
 ## Get taining data according to dataset decision
 path <- "data/"
@@ -45,10 +45,10 @@ target <- grep("P_HABITABLE", colnames(test))
 ## Parameter set depending on dataset
 mtry <- 4
 if(var == 'cat') {
-  mtry <- 2
+  mtry <- 5
 }
-ntree <- 100
-if(var == 'num') {
+ntree <- 300
+if(var == 'all') {
   ntree <- 200
 }
 
@@ -67,13 +67,13 @@ prop.table(ct, 1)[1,1]
 print("Habitable false negative rate:")
 prop.table(ct,1)[1,2]
 print("Model general accuracy:")
-sum(diag(prop.table(ct)))
+1-mean(rf.model$err.rate[,1])
 ## Plot feature importance
 varImpPlot(rf.model, main="Feature importance for Random Forest final model")
 
 ##### QDA #####
 
-if(var != 'all') {
+if(var == 'cat' || (var == 'all' && oversampled == T)) {
   qda.model <- qda(P_HABITABLE~.,train)
   qda.model
   pred <- predict(qda.model, test[,-c(target)])
@@ -88,9 +88,26 @@ if(var != 'all') {
   
 }
 
+##### LDA #####
+
+if(var == 'cat'  && oversampled == T) {
+  lda.model <- lda(P_HABITABLE~.,train)
+  lda.model
+  pred <- predict(lda.model, test[,-c(target)])
+  (ct <- table(Truth=test[,target], Pred=pred$class))
+  diag(prop.table(ct, 1))
+  print("Habitable class accuracy:")
+  print(diag(prop.table(ct, 1))[1])
+  print("Habitable false negative rate:")
+  print(prop.table(ct,1)[1,2])
+  print("Model general accuracy:")
+  print(sum(diag(prop.table(ct))))
+  
+}
+
 ##### NAIVE BAYES #####
 
-if(var == 'all') {
+if(oversampled == F || ( oversampled = T && var == 'all')) {
   naive.model <- naiveBayes(P_HABITABLE~., data=train)
   naive.model
   pred <- predict(naive.model, newdata=test)
