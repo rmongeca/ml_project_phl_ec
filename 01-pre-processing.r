@@ -13,8 +13,8 @@ data <- read.delim("data/phl_exoplanet_catalog.csv", header = TRUE, sep = ",", d
 
 ## Variables to select datasets to generate
 ## (will generate whole data, training and test for given parameters)
-oversampled <- FALSE
-var <- 'all'
+oversampled <- TRUE
+selection <- 'all'
 ## Variable to select imputation method
 imp.method <- 'knn'
 
@@ -48,7 +48,8 @@ rm(order.col)
 
 ## See missing values percentage per column
 (var.na <- apply(data, 2, function(x) 100*(sum(is.na(x))/nrow(data))))
-plot(var.na)
+plot(var.na,
+     main="Missing values ratio per feature", xlab="Feature", ylab="Missing values ratio")
 abline(h=10, col="red")
 ## Remove columns with more than 10% missings
 col.dp <- which(var.na > 10)
@@ -59,7 +60,8 @@ rm(col.dp, var.na)
 
 ## See missing values percentage per row
 ind.na <- apply(data, 1, function(x) 100*(sum(is.na(x))/ncol(data)))
-plot(ind.na)
+plot(ind.na,
+     main="Missing values ratio per instance", xlab="Instance", ylab="Missing values ratio")
 abline(h=10, col="red")
 ## Drop rows with more than 10% missing values
 ind.dp <- which(ind.na > 10)
@@ -190,8 +192,11 @@ mosthighlycorrelated = function(mydataframe,numtoreport)
 }
 mosthighlycorrelated(data[,-non.numeric],20)
 
-var.sel <- which(colnames(data) %in% c("P_MASS_EST","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_LUMINOSITY","S_RADIUS_EST"))
-var.sel.all <- which(colnames(data) %in% c("P_TYPE","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_TYPE_TEMP","S_RADIUS_EST"))
+(subset.CFS <- cfs (P_HABITABLE~., data))
+#(subset.Consistency <- consistency (P_HABITABLE~., data))
+
+var.sel <- which(colnames(data) %in% c("P_MASS_EST","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_TEMPERATURE","S_RADIUS_EST"))
+var.sel.cat <- which(colnames(data) %in% c("P_TYPE","P_SEMI_MAJOR_AXIS_EST","P_TEMP_EQUIL", "P_PERIOD","S_TYPE_TEMP","S_RADIUS_EST"))
 
 if(selection == 'num') {
   hab <- data$P_HABITABLE
@@ -201,7 +206,7 @@ if(selection == 'num') {
 }
 if(selection == 'cat') {
   hab <- data$P_HABITABLE
-  data <- data[,var.sel.all]
+  data <- data[,var.sel.cat]
   data$P_HABITABLE <- hab
   rm(hab)
 }
@@ -218,7 +223,7 @@ rm(i)
 
 ## Synthetic Minority Oversample Technique (SMOTE)
 if(oversample == T) {
-  data <- SMOTE(P_HABITABLE~., data = data, perc.over = 500, perc.under = 1200)
+  data <- SMOTE(P_HABITABLE~., data = data, perc.over = 1000, perc.under = 250)
 }
 
 # create training and test sample
@@ -229,16 +234,7 @@ train <- sample(seq_len(nrow(data)), size = sample.size)
 
 data.training <- data[train, ]
 data.test <- data[-train, ]
-
-
-# (subset.CFS <- cfs (P_HABITABLE~., data))
-# (subset.Consistency <- consistency (P_HABITABLE~., data))
-# 
-# glm.model <- glm (P_HABITABLE~., family = binomial(link=logit), data = data)
-# (glm.model.form <- step(glm.model)$formula)
-# 
-# (rf.importace <- random.forest.importance(P_HABITABLE~., data, importance.type = 1))
-# 
+ 
 if(oversample == F) {
   write.csv(data, file = paste("data/data_", selection,".csv", sep = ""))
   write.csv(data.training, file = paste("data/training_", selection, ".csv", sep = ""))
